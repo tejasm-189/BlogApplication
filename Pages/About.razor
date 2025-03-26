@@ -1,0 +1,287 @@
+﻿@page "/about"
+@using MudBlazor
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <MudPaper Elevation="3" Class="pa-8 mb-8 rounded-xl overflow-hidden" Style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-secondary) 100%);">
+        <div class="position-relative">
+            <!-- Decorative elements -->
+            <div class="position-absolute" style="top: -30px; right: -30px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.1);"></div>
+            <div class="position-absolute" style="bottom: -40px; left: -20px; width: 80px; height: 80px; border-radius: 50%; background: rgba(255,255,255,0.1);"></div>
+            <div class="position-absolute" style="top: 40%; right: 10%; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.1);"></div>
+            
+            <MudGrid>
+                <MudItem xs="12" md="7" Class="d-flex flex-column justify-center">
+                    <div class="mb-2">
+                        <MudText Typo="Typo.overline" Color="Color.Surface" Style="opacity: 0.8; letter-spacing: 3px; font-size: 0.9rem;">WHO WE ARE</MudText>
+                    </div>
+                    <MudText Typo="Typo.h2" Color="Color.Surface" Class="mb-4 font-weight-bold about-heading" Style="line-height: 1.2;">
+                        Empowering <span class="text-highlight">Voices</span>, <br />Connecting <span class="text-highlight">Ideas</span>
+                    </MudText>
+                    <MudText Typo="Typo.subtitle1" Color="Color.Surface" Class="mb-6" Style="line-height: 1.6; max-width: 500px;">
+                        We're creating the space where authentic storytelling flourishes and meaningful connections thrive.
+                    </MudText>
+                    <MudButton Variant="Variant.Filled"
+                              Color="Color.Surface"
+                              Size="Size.Large"
+                              Href="/view-post"
+                              Class="rounded-pill px-8 py-3 about-button">
+                        <MudIcon Icon="@Icons.Material.Filled.Explore" Class="mr-2" />
+                        <span>Discover Stories</span>
+                    </MudButton>
+                </MudItem>
+                <MudItem xs="12" md="5" Class="d-flex justify-center align-center">
+                    <div class="illustration-container">
+                        <MudIcon Icon="@Icons.Material.Filled.People"
+                                Size="Size.Large"
+                                Color="Color.Surface"
+                                Style="width: 200px; height: 200px;" 
+                                Class="pulse-animation" />
+                        <div class="floating-circle floating-circle-1"></div>
+                        <div class="floating-circle floating-circle-2"></div>
+                        <div class="floating-circle floating-circle-3"></div>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </div>
+    </MudPaper>
+
+    <div class="mission-container text-center mb-10">
+        <MudText Typo="Typo.overline" Color="Color.Primary" Style="letter-spacing: 3px; font-size: 0.85rem;">OUR MISSION</MudText>
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-6 font-weight-bold mission-heading">
+            <span class="position-relative">
+                Redefining Digital Storytelling
+                <div class="heading-underline"></div>
+            </span>
+        </MudText>
+    </div>
+
+    <MudGrid Class="mb-12">
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="h-100 rounded-lg mission-card">
+                <MudCardHeader>
+                    <CardHeaderAvatar>
+                        <MudAvatar Color="Color.Primary" Size="Size.Large">
+                            <MudIcon Icon="@Icons.Material.Filled.Lightbulb" />
+                        </MudAvatar>
+                    </CardHeaderAvatar>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold">Spark Creativity</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        We fuel imaginative thinking by providing the tools and platform for writers to express ideas that challenge norms and inspire positive change.
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="h-100 rounded-lg mission-card">
+                <MudCardHeader>
+                    <CardHeaderAvatar>
+                        <MudAvatar Color="Color.Secondary" Size="Size.Large">
+                            <MudIcon Icon="@Icons.Material.Filled.Group" />
+                        </MudAvatar>
+                    </CardHeaderAvatar>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold">Nurture Community</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        We're creating meaningful connections between diverse voices, fostering dialogue that bridges perspectives and enriches understanding.
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard Elevation="2" Class="h-100 rounded-lg mission-card">
+                <MudCardHeader>
+                    <CardHeaderAvatar>
+                        <MudAvatar Color="Color.Tertiary" Size="Size.Large">
+                            <MudIcon Icon="@Icons.Material.Filled.Book" />
+                        </MudAvatar>
+                    </CardHeaderAvatar>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold">Amplify Knowledge</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        We elevate shared wisdom by democratizing content creation, ensuring diverse insights and experiences reach those who need them most.
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Elevation="0" Class="pa-8 text-center rounded-xl position-relative overflow-hidden" 
+              Style="background: linear-gradient(120deg, var(--mud-palette-primary-lighten), var(--mud-palette-primary-darken));">
+        <!-- Decorative dots pattern -->
+        <div class="dots-pattern"></div>
+        
+        <MudText Typo="Typo.h4" Color="Color.Surface" Class="mb-4 font-weight-bold position-relative">Join Our Creative Collective</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Surface" Class="mb-6 mx-auto position-relative" Style="max-width: 600px; opacity: 0.9;">
+            Whether you're a seasoned wordsmith or just beginning your writing journey, there's a place for your unique voice in our global narrative.
+        </MudText>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Dark"
+                   Size="Size.Large"
+                   Href="/create-post"
+                   Class="rounded-pill px-8 py-3 position-relative join-button">
+            <MudIcon Icon="@Icons.Material.Filled.Create" Class="mr-2" />
+            Become a Creator
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+<style>
+    .about-heading {
+        font-size: 2.75rem;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .text-highlight {
+        position: relative;
+        z-index: 1;
+    }
+    
+    .text-highlight:after {
+        content: '';
+        position: absolute;
+        bottom: 0.1em;
+        left: -0.05em;
+        right: -0.05em;
+        height: 0.3em;
+        background: rgba(255,255,255,0.2);
+        z-index: -1;
+        transform: rotate(-1deg);
+    }
+    
+    .about-button {
+        transition: transform 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .about-button:hover {
+        transform: translateY(-2px);
+    }
+    
+    .illustration-container {
+        position: relative;
+    }
+    
+    .floating-circle {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        animation: float 6s ease-in-out infinite;
+    }
+    
+    .floating-circle-1 {
+        width: 30px;
+        height: 30px;
+        top: 20%;
+        left: 15%;
+        animation-delay: 0s;
+    }
+    
+    .floating-circle-2 {
+        width: 20px;
+        height: 20px;
+        top: 70%;
+        left: 25%;
+        animation-delay: 1s;
+    }
+    
+    .floating-circle-3 {
+        width: 25px;
+        height: 25px;
+        top: 40%;
+        right: 15%;
+        animation-delay: 2s;
+    }
+    
+    .pulse-animation {
+        animation: pulse 3s ease-in-out infinite;
+    }
+    
+    @@keyframes float {
+        0% {
+            transform: translateY(0px);
+        }
+        50% {
+            transform: translateY(-10px);
+        }
+        100% {
+            transform: translateY(0px);
+        }
+    }
+    
+    @@keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.05);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
+    
+    .mission-container {
+        margin-top: 4rem;
+    }
+    
+    .mission-heading {
+        display: inline-block;
+    }
+    
+    .heading-underline {
+        position: absolute;
+        bottom: -10px;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 3px;
+        background: linear-gradient(to right, var(--mud-palette-primary-lighten), var(--mud-palette-primary), var(--mud-palette-primary-lighten));
+    }
+    
+    .mission-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .mission-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+    }
+    
+    .dots-pattern {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: radial-gradient(rgba(255,255,255,0.15) 2px, transparent 2px);
+        background-size: 30px 30px;
+        opacity: 0.4;
+    }
+    
+    .join-button {
+        transition: transform 0.3s ease;
+    }
+    
+    .join-button:hover {
+        transform: translateY(-2px);
+    }
+    
+    @@media (max-width: 600px) {
+        .about-heading {
+            font-size: 2rem;
+        }
+    }
+</style>
+
+@code {
+}

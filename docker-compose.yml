@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  blogapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - MongoDB__ConnectionString=mongodb://mongodb:27017
+      - Supabase__Url=${SUPABASE_URL}
+      - Supabase__Key=${SUPABASE_KEY}
+    depends_on:
+      - mongodb
+    networks:
+      - blog-network
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - blog-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  blog-network:
+    driver: bridge 

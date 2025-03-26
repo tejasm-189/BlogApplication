@@ -1,0 +1,228 @@
+﻿@page "/"
+@using MudBlazor
+@using BlogApplication.Services
+@using BlogApplication.Models
+
+
+@inject MongoDBService MongoDBService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    <!-- Hero Section -->
+    <MudPaper Elevation="0" Class="relative overflow-hidden rounded-xl py-16 px-8 mb-16"
+              Style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-secondary) 100%);">
+        <div class="position-relative">
+            <!-- Decorative elements -->
+            <div class="position-absolute" style="top: -20px; right: -20px; width: 100px; height: 100px; border-radius: 50%; background: rgba(255,255,255,0.1);"></div>
+            <div class="position-absolute" style="bottom: -30px; left: -30px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.1);"></div>
+            
+            <MudContainer>
+                <MudGrid Justify="Justify.Center" Class="text-center">
+                    <MudItem xs="12" Class="d-flex flex-column align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Article"
+                                Color="Color.Surface"
+                                Style="width: 80px; height: 80px;"
+                                Class="mb-6" />
+                        <div class="welcome-text-container">
+                            <MudText Typo="Typo.h1" Color="Color.Surface" Class="mb-2 fw-bold welcome-heading" Style="letter-spacing: -1.5px;">
+                                Ideas Worth <span class="welcome-highlight">Sharing</span>
+                            </MudText>
+                            <MudText Typo="Typo.h6" Color="Color.Surface" Class="mb-8 mx-auto welcome-subtitle" Style="max-width: 700px; font-weight: 400; line-height: 1.6;">
+                                Unleash your voice in a community where creativity thrives. Your unique perspective deserves to be heard.
+                            </MudText>
+                            <MudButton Variant="Variant.Filled"
+                                    Color="Color.Dark"
+                                    Size="Size.Large"
+                                    Class="px-8 py-3 rounded-pill welcome-button"
+                                    Href="/signin">
+                                <span class="mx-2">Begin Your Journey</span>
+                                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Class="ml-1" />
+                            </MudButton>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </MudContainer>
+        </div>
+    </MudPaper>
+
+    <!-- Features Section -->
+    <div class="section-heading-container mb-10">
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="section-heading position-relative d-inline-block">
+            <span class="fw-bold">Why Writers Choose Us</span>
+            <div class="section-heading-underline"></div>
+        </MudText>
+    </div>
+
+    <MudGrid Justify="Justify.Center" Class="mb-16">
+        @foreach (var feature in features)
+        {
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="h-100 rounded-lg feature-card">
+                    <MudCardHeader>
+                        <CardHeaderAvatar>
+                            <MudAvatar Color="Color.Primary" Size="Size.Large">
+                                <MudIcon Icon="@feature.Icon" />
+                            </MudAvatar>
+                        </CardHeaderAvatar>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6" Class="fw-bold">@feature.Title</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            @feature.Description
+                        </MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+
+    <!-- Call to Action Section -->
+    <MudPaper Elevation="0"
+              Class="py-12 px-8 rounded-xl text-center mb-8 position-relative overflow-hidden cta-section"
+              Style="background: linear-gradient(to right, var(--mud-palette-primary-lighten), var(--mud-palette-primary-darken));">
+        <!-- Decorative wave -->
+        <div class="position-absolute wave-decoration"></div>
+        
+        <MudText Typo="Typo.h3" Color="Color.Surface" Class="mb-4 fw-bold">Ready to Craft Your Story?</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Surface" Class="mb-6 mx-auto" Style="max-width: 600px; opacity: 0.9;">
+            Join thousands of thought leaders, experts, and creatives who share their perspective with an engaged audience.
+        </MudText>
+        <MudButton Variant="Variant.Filled"
+                  Color="Color.Dark"
+                  Size="Size.Large"
+                  Class="px-8 py-3 rounded-pill cta-button"
+                  Href="/signin">
+            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" />
+            Start Writing Now
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+<style>
+    .welcome-heading {
+        font-size: 3.5rem;
+        line-height: 1.2;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        position: relative;
+    }
+    
+    .welcome-highlight {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .welcome-highlight:after {
+        content: '';
+        position: absolute;
+        bottom: 0.15em;
+        left: -0.1em;
+        right: -0.1em;
+        height: 0.3em;
+        background: rgba(255,255,255,0.2);
+        z-index: -1;
+        transform: rotate(-2deg);
+    }
+    
+    .welcome-subtitle {
+        font-size: 1.25rem;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .welcome-button {
+        transition: transform 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .welcome-button:hover {
+        transform: translateY(-2px);
+    }
+    
+    .section-heading-container {
+        text-align: center;
+    }
+    
+    .section-heading {
+        font-weight: 700;
+        padding-bottom: 8px;
+    }
+    
+    .section-heading-underline {
+        position: absolute;
+        bottom: 0;
+        left: 10%;
+        right: 10%;
+        height: 3px;
+        background: linear-gradient(to right, var(--mud-palette-primary-lighten), var(--mud-palette-primary), var(--mud-palette-primary-lighten));
+        border-radius: 3px;
+    }
+    
+    .feature-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+    }
+    
+    .cta-section {
+        overflow: hidden;
+    }
+    
+    .wave-decoration {
+        bottom: -80px;
+        left: 0;
+        right: 0;
+        height: 120px;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z' style='fill: rgba(255,255,255,0.1);'%3E%3C/path%3E%3C/svg%3E");
+        background-size: cover;
+        z-index: 1;
+    }
+    
+    .cta-button {
+        position: relative;
+        z-index: 2;
+    }
+    
+    @@media (max-width: 600px) {
+        .welcome-heading {
+            font-size: 2.5rem;
+        }
+        
+        .welcome-subtitle {
+            font-size: 1rem;
+        }
+    }
+</style>
+
+@code {
+    private List<Feature> features = new()
+    {
+        new Feature
+        {
+            Icon = Icons.Material.Filled.Create,
+            Title = "Effortless Creation",
+            Description = "Our intuitive editor makes crafting beautiful, engaging content as simple as your thoughts flowing onto the page."
+        },
+        new Feature
+        {
+            Icon = Icons.Material.Filled.Groups,
+            Title = "Vibrant Community",
+            Description = "Connect with passionate readers and fellow writers who appreciate your unique voice and perspective."
+        },
+        new Feature
+        {
+            Icon = Icons.Material.Filled.Analytics,
+            Title = "Insights & Growth",
+            Description = "Track your impact with detailed analytics that help you understand your audience and refine your creative approach."
+        }
+    };
+    
+public class Feature
+{
+    public string Icon { get; set; }
+    public string Title { get; set; }
+    public string Description { get; set; }
+}
+}

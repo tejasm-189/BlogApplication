@@ -1,0 +1,430 @@
+﻿@inherits LayoutComponentBase
+@using BlogApplication.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject ILocalStorageService LocalStorage
+@inject ISnackbar Snackbar
+@inject SupabaseService SupabaseService
+@using Blazored.LocalStorage
+@using System.Security.Claims
+@inject MongoDBService MongoDBService
+
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="@(_isDarkMode ? Color.Dark : Color.Primary)" Dense="@_dense" Fixed="true">
+        <MudIconButton Icon="@(drawerOpen ? Icons.Material.Filled.Close : Icons.Material.Filled.Menu)" 
+                       Color="Color.Inherit" 
+                       Edge="Edge.Start" 
+                       OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h5" Class="ml-3 font-weight-bold cursor-pointer" @onclick="@(() => Navigation.NavigateTo("/"))">Blog App</MudText>
+
+        <MudSpacer />
+
+        <div class="d-none d-md-flex">
+            @if (isAuthenticated)
+            {
+                <MudButton Variant="Variant.Text" 
+                          Color="Color.Inherit" 
+                          Href="/view-post"
+                          StartIcon="@Icons.Material.Filled.Dashboard"
+                          Class="mx-1">
+                    Posts
+                </MudButton>
+                
+                <MudButton Variant="Variant.Text" 
+                          Color="Color.Inherit" 
+                          Href="/create-post"
+                          StartIcon="@Icons.Material.Filled.Create"
+                          Class="mx-1">
+                    Write
+                </MudButton>
+                
+                <MudButton Variant="Variant.Text" 
+                          Color="Color.Inherit" 
+                          Href="/about"
+                          StartIcon="@Icons.Material.Filled.Info"
+                          Class="mx-1">
+                    About
+                </MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Text" 
+                          Color="Color.Inherit" 
+                          Href="/"
+                          StartIcon="@Icons.Material.Filled.Home"
+                          Class="mx-1">
+                    Home
+                </MudButton>
+                
+                <MudButton Variant="Variant.Text" 
+                          Color="Color.Inherit" 
+                          Href="/about"
+                          StartIcon="@Icons.Material.Filled.Info"
+                          Class="mx-1">
+                    About
+                </MudButton>
+            }
+        </div>
+        
+        <MudTooltip Text="@GetTooltipText()" Color="Color.Dark" Placement="Placement.Bottom">
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.WbSunny : Icons.Material.Filled.DarkMode)"
+                          Color="Color.Inherit"
+                          Edge="Edge.End"
+                          @onclick="ToggleDarkMode" />
+        </MudTooltip>
+
+        @if (isAuthenticated)
+        {
+            <NotificationBadge />
+            
+            <MudMenu AnchorOrigin="Origin.BottomRight"
+                     TransformOrigin="Origin.TopRight"
+                     Class="mx-2">
+
+                <ActivatorContent>
+                    <MudAvatar Color="Color.Secondary" Class="cursor-pointer">
+                        @if (!string.IsNullOrEmpty(userEmail))
+                        {
+                            <span>@userEmail.FirstOrDefault().ToString().ToUpper()</span>
+                        }
+                    </MudAvatar>
+                </ActivatorContent>
+
+                <ChildContent>
+                    <div class="pa-4">
+                        <MudText Typo="Typo.subtitle1" Class="mb-1 fw-bold">@UserName</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2">@userEmail</MudText>
+                        
+                        <div class="d-flex gap-2 mt-3">
+                            <MudChip Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">
+                                <MudText Typo="Typo.caption" Class="mr-1">Followers:</MudText>
+                                <MudText Typo="Typo.caption" Class="fw-bold">@followersCount</MudText>
+                            </MudChip>
+                            
+                            <MudChip Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled">
+                                <MudText Typo="Typo.caption" Class="mr-1">Following:</MudText>
+                                <MudText Typo="Typo.caption" Class="fw-bold">@followingCount</MudText>
+                            </MudChip>
+                        </div>
+                    </div>
+                    
+                    <MudDivider />
+                    
+                    <MudMenuItem OnClick="HandleLogout" Icon="@Icons.Material.Filled.Logout">Sign Out</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Secondary" 
+                       StartIcon="@Icons.Material.Filled.Login"
+                       Class="ml-3 rounded-pill"
+                       OnClick="LoginUser">
+                Sign In
+            </MudButton>
+        }
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="@drawerOpen"
+               Elevation="0"
+               Variant="@DrawerVariant.Temporary"
+               ClipMode="DrawerClipMode.Always"
+               Anchor="Anchor.Left"
+               Width="250px"
+               OpenMiniOnHover="true"
+               Class="modern-drawer">
+        
+        <div class="drawer-content py-4">
+            @if (isAuthenticated)
+            {
+                <div class="d-flex justify-center mb-6">
+                    <MudAvatar Size="Size.Large" Color="Color.Primary" Style="width: 70px; height: 70px;">
+                        @if (!string.IsNullOrEmpty(userEmail))
+                        {
+                            <MudText Typo="Typo.h5">@userEmail.FirstOrDefault().ToString().ToUpper()</MudText>
+                        }
+                    </MudAvatar>
+                </div>
+                <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-1 fw-bold">@UserName</MudText>
+                <MudText Typo="Typo.caption" Align="Align.Center" Class="mb-4">@userEmail</MudText>
+                <MudDivider Class="mb-4" />
+            }
+            
+            <div class="px-3">
+                @if (!isAuthenticated)
+                {
+                    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home" Class="modern-nav-link mb-2">
+                        Home
+                    </MudNavLink>
+                    
+                    <MudNavLink Href="/about" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Info" Class="modern-nav-link mb-2">
+                        About
+                    </MudNavLink>
+                    
+                    <MudNavLink OnClick="LoginUser" Icon="@Icons.Material.Filled.Login" Class="modern-nav-link mb-2">
+                        Sign In
+                    </MudNavLink>
+                }
+
+                @if (isAuthenticated)
+                {
+                    <MudNavLink Href="/view-post" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard" Class="modern-nav-link mb-2">
+                        View Posts
+                    </MudNavLink>
+                    
+                    <MudNavLink Href="/create-post" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Create" Class="modern-nav-link mb-2">
+                        Create Post
+                    </MudNavLink>
+
+                    <MudNavLink Href="/about" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Info" Class="modern-nav-link mb-2">
+                        About
+                    </MudNavLink>
+
+                    <MudDivider Class="my-4" />
+                    
+                    <MudNavLink OnClick="HandleLogout" Icon="@Icons.Material.Filled.Logout" IconColor="Color.Error" Class="modern-nav-link logout-link">
+                        Sign Out
+                    </MudNavLink>
+                }
+            </div>
+        </div>
+    </MudDrawer>
+
+    <MudMainContent>
+        <div class="content-container pt-16 px-2 px-sm-8 px-md-16">
+            @Body
+        </div>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _dense = false;
+    private bool drawerOpen = false;
+    private bool _isDarkMode;
+    private string userEmail = "";
+    private string UserName = "";
+    private bool isAuthenticated = false;
+    private int followersCount = 0;
+    private int followingCount = 0;
+    private string currentUserId = "";
+    private string userInitial = "";
+    private string userName = "";
+
+    // Create a custom theme
+    private MudTheme _theme = new MudTheme()
+    {
+        Palette = new PaletteLight()
+        {
+            Primary = "#1976D2",
+            Secondary = "#26A69A",
+            AppbarBackground = "#1976D2",
+            Background = "#F5F5F5",
+            DrawerBackground = "#FFF",
+            DrawerText = "rgba(0,0,0, 0.7)",
+            Surface = "#FFF"
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#90CAF9",
+            Secondary = "#80CBC4",
+            AppbarBackground = "#1A1A27",
+            Background = "#121212",
+            DrawerBackground = "#1E1E2D",
+            DrawerText = "rgba(255,255,255, 0.8)",
+            Surface = "#1E1E2D"
+        },
+        LayoutProperties = new LayoutProperties()
+        {
+            DefaultBorderRadius = "8px"
+        },
+        Typography = new Typography()
+        {
+            Default = new Default()
+            {
+                FontFamily = new[] { "Inter", "Roboto", "Arial", "sans-serif" }
+            }
+        }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckAuthenticationStatus();
+        AuthStateProvider.AuthenticationStateChanged += AuthenticationStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Load the dark mode preference from local storage after the component is rendered
+            _isDarkMode = await LocalStorage.GetItemAsync<bool>("isDarkMode");
+            StateHasChanged(); // Ensure the UI updates with the loaded theme
+        }
+    }
+
+    private async void AuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        var authState = await task;
+        await InvokeAsync(async () =>
+        {
+            await CheckAuthenticationStatus();
+            StateHasChanged();
+        });
+    }
+
+    private string GetTooltipText()
+    {
+        return _isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode";
+    }
+
+    public void Dispose()
+    {
+        AuthStateProvider.AuthenticationStateChanged -= AuthenticationStateChanged;
+    }
+
+    private async Task CheckAuthenticationStatus()
+    {
+        try
+        {
+            var authToken = await LocalStorage.GetItemAsync<string>("auth_token");
+            isAuthenticated = !string.IsNullOrEmpty(authToken);
+
+            if (isAuthenticated)
+            {
+                var Email = await LocalStorage.GetItemAsync<string>("Email") ?? "Unknown User";
+                userEmail = Email;
+
+                var username = await LocalStorage.GetItemAsync<string>("username") ?? "Unknown User";
+                UserName = username;
+
+                currentUserId = await LocalStorage.GetItemAsync<string>("userid");
+                if (!string.IsNullOrEmpty(currentUserId))
+                {
+                    var followers = await MongoDBService.GetFollowersAsync(currentUserId);
+                    var following = await MongoDBService.GetFollowingAsync(currentUserId);
+                    followersCount = followers?.Count ?? 0;
+                    followingCount = following?.Count ?? 0;
+                }
+
+                userInitial = Email.Substring(0, 1);
+                userName = Email.Split('@')[0];
+            }
+            else
+            {
+                userEmail = "";
+                followersCount = 0;
+                followingCount = 0;
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error Checking Authentication: {ex.Message}");
+            isAuthenticated = false;
+            userEmail = "";
+            followersCount = 0;
+            followingCount = 0;
+        }
+    }
+
+    private void ToggleDrawer()
+    {
+        drawerOpen = !drawerOpen;
+    }
+
+    private async Task ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+        // Save the dark mode preference to local storage
+        await LocalStorage.SetItemAsync("isDarkMode", _isDarkMode);
+    }
+
+    private async Task LoginUser()
+    {
+        Navigation.NavigateTo("/signin");
+        await Task.Delay(500);
+        await CheckAuthenticationStatus();
+        StateHasChanged();
+    }
+
+    private async Task HandleLogout()
+    {
+        try
+        {
+            await LocalStorage.RemoveItemAsync("auth_token");
+            await LocalStorage.RemoveItemAsync("Email");
+            await LocalStorage.RemoveItemAsync("user_metadata");
+            await LocalStorage.RemoveItemAsync("userid");
+            await LocalStorage.RemoveItemAsync("username");
+
+            isAuthenticated = false;
+            userEmail = "";
+            followersCount = 0;
+            followingCount = 0;
+            drawerOpen = false;
+
+            Snackbar.Add("Logged out successfully", Severity.Success);
+            await Task.Delay(1000);
+
+            Console.WriteLine("User logged out successfully");
+
+            StateHasChanged();
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Error during logout", Severity.Error);
+            Console.WriteLine($"Logout error: {ex.Message}");
+        }
+    }
+}
+
+<style>
+    .content-container {
+        min-height: calc(100vh - 64px);
+    }
+    
+    .modern-drawer {
+        border: none;
+    }
+    
+    .drawer-content {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+    
+    .modern-nav-link {
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        margin: 4px 0;
+    }
+    
+    .modern-nav-link:hover {
+        background-color: var(--mud-palette-action-default-hover);
+        transform: translateX(4px);
+    }
+    
+    .modern-nav-link.active {
+        background-color: rgba(var(--mud-palette-primary-rgb), 0.1);
+        color: var(--mud-palette-primary);
+        font-weight: 500;
+    }
+    
+    .logout-link {
+        margin-top: auto;
+    }
+    
+    .logout-link:hover {
+        background-color: rgba(var(--mud-palette-error-rgb), 0.1);
+        color: var(--mud-palette-error);
+    }
+</style>

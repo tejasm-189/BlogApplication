@@ -1,0 +1,148 @@
+﻿@page "/signin"
+@using System.ComponentModel.DataAnnotations
+@using BlogApplication.Services
+@inject SupabaseService SupabaseService
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<div class="signin-page">
+    <MudContainer MaxWidth="MaxWidth.Small" Class="px-4">
+        <MudCard Elevation="3" Class="mt-4 mt-sm-8 rounded-lg">
+            <MudCardHeader Class="d-flex flex-column align-center py-6" Style="background: linear-gradient(to right, var(--mud-palette-primary-lighten), var(--mud-palette-primary));">
+                <MudAvatar Color="Color.Surface" Size="Size.Large" Class="mb-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" />
+                </MudAvatar>
+                <MudText Typo="Typo.h4" Color="Color.Surface" Class="text-center">Sign In</MudText>
+            </MudCardHeader>
+            <MudCardContent Class="px-4 py-6">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12">
+                        <div class="d-flex align-center mb-3">
+                            <MudIcon Icon="@Icons.Material.Filled.Email" Class="mr-2" Color="Color.Primary" />
+                            <MudTextField @bind-Value="@email"
+                                         Label="Email"
+                                         Required="true"
+                                         RequiredError="Email is required!"
+                                         Validation="@(new EmailAddressAttribute() {ErrorMessage = "Invalid email address"})"
+                                         Variant="Variant.Outlined"
+                                         FullWidth="true" />
+                        </div>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.Lock" Class="mr-2" Color="Color.Primary" />
+                            <MudTextField @bind-Value="@password"
+                                         Label="Password"
+                                         Required="true"
+                                         InputType="@(showPassword ? InputType.Text : InputType.Password)"
+                                         Adornment="Adornment.End"
+                                         Variant="Variant.Outlined"
+                                         FullWidth="true"
+                                         AdornmentIcon="@(showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                         AdornmentColor="Color.Primary"
+                                         OnAdornmentClick="() => showPassword = !showPassword" />
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+            <MudCardActions Class="d-flex flex-column align-center pb-6 px-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Size="Size.Large"
+                           FullWidth="true"
+                           OnClick="HandleSignIn"
+                           Class="sign-in-button mb-3 py-2">
+                    @if (!isLoading)
+                    {
+                        <span>Sign In</span>
+                    }
+                    else
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Signing In...</span>
+                    }
+                </MudButton>
+
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Secondary"
+                           OnClick="@(() => NavigationManager.NavigateTo("/signup"))">
+                    Create an account
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudContainer>
+</div>
+
+<style>
+    .signin-page {
+        min-height: calc(100vh - 150px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .sign-in-button {
+        border-radius: 6px;
+    }
+</style>
+
+@code {
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private bool showPassword;
+    private bool isLoading = false;
+
+
+    private async Task HandleSignIn()
+    {
+        if (isLoading) return;
+
+        isLoading = true;
+
+        try
+        {
+            var token = await SupabaseService.SignInAsync(email, password);
+            if (!string.IsNullOrEmpty(token))
+            {
+                await LocalStorage.SetItemAsync("auth_token", token);
+                await LocalStorage.SetItemAsync("Email", email);
+
+                var metadata = await SupabaseService.GetUserMetadataAsync();
+                if (metadata != null)
+                {
+                    string username = metadata.ContainsKey("username") ? metadata["username"].ToString() : "No username";
+                    string role = metadata.ContainsKey("role") ? metadata["role"].ToString() : "User";
+
+                    if (role == "Admin")
+                    {
+                        Snackbar.Add($"Welcome Admin {username}!", Severity.Success);
+						await Task.Delay(1000);
+                    }
+                    else
+                    {
+                        Snackbar.Add($"Welcome User {username}!", Severity.Success);
+                        await Task.Delay(1000);
+                    }
+                }
+                StateHasChanged();
+                NavigationManager.NavigateTo("/view-post",true);
+               
+            }
+            else
+            {
+                Snackbar.Add("Invalid email or password", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            Snackbar.Add("Login failed. Please try again.", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,22 @@
+﻿{
+    "GeminiResponse": {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": "Generated content..."
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "GoogleImageResponse": {
+        "items": [
+            {
+                "link": "https://example.com/image.jpg "
+            }
+        ]
+    }
+}

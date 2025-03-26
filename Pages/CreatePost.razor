@@ -1,0 +1,569 @@
+﻿@page "/create-post"
+@using System.ComponentModel.DataAnnotations
+@using BlogApplication.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Text.Json
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+@inject SupabaseService SupabaseService
+@inject ILocalStorageService LocalStorage
+@inject MongoDBService MongoDBService
+@using MudBlazor
+@using BlogApplication.Models
+@using Blazored.LocalStorage
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject HttpClient HttpClient
+@inject IWebHostEnvironment Environment
+@inject IConfiguration Configuration
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudPaper Elevation="3" Class="pa-8 rounded-xl">
+        <MudPaper Elevation="0" Class="pa-16 mb-16 rounded-xl position-relative overflow-hidden" Style="background: linear-gradient(135deg, #2196F3 0%, #64B5F6 100%);">
+            <!-- Decorative elements -->
+            <div class="position-absolute" style="top: -20px; right: -20px; width: 100px; height: 100px; border-radius: 50%; background: rgba(255,255,255,0.15);"></div>
+            <div class="position-absolute" style="bottom: -30px; left: -30px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.15);"></div>
+            
+            <div class="text-center">
+                <div class="mb-2">
+                    <MudText Typo="Typo.overline" Color="Color.Surface" Style="opacity: 0.9; letter-spacing: 3px; font-size: 0.9rem;">CREATE YOUR POST</MudText>
+                </div>
+                <MudText Typo="Typo.h2" Align="Align.Center" Color="Color.Surface" Class="mb-3 font-weight-bold creator-heading">
+                    Share Your <span class="creator-highlight">Story</span>
+                </MudText>
+                <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Surface" Class="mb-2 mx-auto" Style="max-width: 700px; opacity: 0.9;">
+                    Express your thoughts, share your knowledge, and connect with readers around the world
+                </MudText>
+            </div>
+        </MudPaper>
+
+        <MudItem xs="12">
+            <MudForm @ref="form" Model="@newPost" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudCard Elevation="0" Class="mb-4 rounded-lg border-creator">
+                            <MudCardContent>
+                                <MudTextField Label="Title"
+                                          @bind-Value="newPost.Title"
+                                          Variant="Variant.Outlined"
+                                          Immediate="true"
+                                          Required="true"
+                                          RequiredError="Please enter a title for your blog post"
+                                          HelperText="Choose a compelling title that captures attention"
+                                          Counter="100"
+                                          MaxLength="100"
+                                          Class="mb-4" />
+                                <MudButton Variant="Variant.Filled"
+                                       Color="Color.Info"
+                                       StartIcon="@Icons.Material.Filled.AutoFixHigh"
+                                       OnClick="GenerateAIContent"
+                                       Disabled="@(string.IsNullOrEmpty(newPost.Title) || string.IsNullOrEmpty(newPost.Category) || isGenerating)"
+                                       Class="creator-button">
+                                    @if (isGenerating)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                        <MudText Class="ml-2">Generating...</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText>Generate with AI</MudText>
+                                    }
+                                </MudButton>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <MudItem xs="12" md="4">
+                        <MudCard Elevation="0" Class="rounded-lg border-creator h-100">
+                            <MudCardContent>
+                                <MudText Typo="Typo.subtitle1" Class="mb-4 font-weight-medium">
+                                    <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" Size="Size.Small" Color="Color.Info" />
+                                    Post Settings
+                                </MudText>
+
+                                <MudSelect T="string"
+                                       Label="Category"
+                                       @bind-Value="newPost.Category"
+                                       Required="true"
+                                       RequiredError="Please select a category"
+                                       AnchorOrigin="Origin.BottomCenter"
+                                       Class="mb-4">
+                                    @foreach (var category in Categories)
+                                    {
+                                        <MudSelectItem Value="@category">@category</MudSelectItem>
+                                    }
+                                </MudSelect>
+
+                                <MudCard Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background-color: rgba(33, 150, 243, 0.05); border: 1px dashed var(--mud-palette-info-lighten);">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-3 d-flex align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Image" Class="mr-2" Size="Size.Small" Color="Color.Info" />
+                                        Featured Image
+                                    </MudText>
+
+                                    <MudFileUpload T="IBrowserFile" FilesChanged="UploadFiles">
+                                        <ActivatorContent>
+                                            <MudButton Variant="Variant.Filled"
+                                                   Color="Color.Info"
+                                                   StartIcon="@Icons.Material.Filled.CloudUpload"
+                                                   Class="creator-upload-button">
+                                                Upload Files
+                                            </MudButton>
+                                        </ActivatorContent>
+                                    </MudFileUpload>
+
+                                    @if (!string.IsNullOrEmpty(ImageUrl))
+                                    {
+                                        <div class="image-preview-container mt-4">
+                                            <MudImage Src="@ImageUrl" Alt="Uploaded Image" Class="preview-image" Style="max-height: 150px; max-width: 100%; object-fit: contain;" />
+                                            <MudButton Variant="Variant.Text"
+                                                   Color="Color.Error"
+                                                   StartIcon="@Icons.Material.Filled.Delete"
+                                                   OnClick="DeleteImage"
+                                                   Size="Size.Small"
+                                                   Class="mt-2 remove-button">
+                                                Remove
+                                            </MudButton>
+                                        </div>
+                                    }
+                                </MudCard>
+
+                                <MudSwitch Label="Publish Immediately"
+                                       @bind-Value="newPost.PublishNow"
+                                       Color="Color.Info"
+                                       Class="mb-2" />
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <MudItem xs="12" md="8">
+                        <MudCard Elevation="0" Class="rounded-lg border-creator h-100">
+                            <MudCardContent>
+                                <MudText Typo="Typo.subtitle1" Class="mb-3 font-weight-medium">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" Size="Size.Small" Color="Color.Info" />
+                                    Content
+                                </MudText>
+                                <MudTextField Label="Content"
+                                          @bind-Value="newPost.Content"
+                                          Variant="Variant.Outlined"
+                                          Lines="15"
+                                          MultiLine="true"
+                                          Immediate="true"
+                                          Required="true"
+                                          RequiredError="Content is required"
+                                          HelperText="Write your blog post content here"
+                                          Class="mb-0" />
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <MudItem xs="12" Class="mt-6">
+                        <MudDivider Class="mb-6" />
+                        <MudGrid Justify="Justify.SpaceBetween" Spacing="2">
+                            <MudItem>
+                                <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Error"
+                                       OnClick="Cancel"
+                                       StartIcon="@Icons.Material.Filled.Close"
+                                       Class="cancel-button">
+                                    Cancel
+                                </MudButton>
+                            </MudItem>
+                            <MudItem>
+                                <MudButton Variant="Variant.Filled"
+                                       Color="Color.Info"
+                                       Disabled="@(isSubmitting || !isFormValid)"
+                                       OnClick="HandleSubmit"
+                                       StartIcon="@Icons.Material.Filled.Publish"
+                                       Class="publish-button">
+                                    @if (isSubmitting)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                        <MudText Class="ml-2">Publishing...</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText>Publish Post</MudText>
+                                    }
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudItem>
+    </MudPaper>
+</MudContainer>
+
+<style>
+    .creator-heading {
+        font-size: 2.5rem;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .creator-highlight {
+        position: relative;
+        z-index: 1;
+    }
+    
+    .creator-highlight:after {
+        content: '';
+        position: absolute;
+        bottom: 0.1em;
+        left: -0.05em;
+        right: -0.05em;
+        height: 0.3em;
+        background: rgba(255,255,255,0.25);
+        z-index: -1;
+        transform: rotate(-1deg);
+    }
+    
+    .creator-button {
+        transition: all 0.3s ease;
+        border-radius: 30px;
+        padding: 10px 24px;
+        box-shadow: 0 4px 10px rgba(33, 150, 243, 0.3);
+        background-color: #2196F3 !important;
+    }
+    
+    .creator-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(33, 150, 243, 0.4);
+    }
+    
+    .creator-upload-button {
+        transition: all 0.3s ease;
+        border-radius: 30px;
+        padding: 8px 20px;
+        background-color: #2196F3 !important;
+        box-shadow: 0 3px 8px rgba(33, 150, 243, 0.2);
+    }
+    
+    .creator-upload-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 12px rgba(33, 150, 243, 0.3);
+    }
+    
+    .border-creator {
+        border: 1px solid rgba(33, 150, 243, 0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .border-creator:hover {
+        border-color: rgba(33, 150, 243, 0.5);
+        box-shadow: 0 4px 12px rgba(33, 150, 243, 0.1);
+    }
+    
+    .image-preview-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 2px 8px rgba(33, 150, 243, 0.1);
+    }
+    
+    .preview-image {
+        border-radius: 6px;
+    }
+    
+    .remove-button {
+        transition: all 0.2s ease;
+        border-radius: 20px;
+    }
+    
+    .remove-button:hover {
+        background-color: rgba(211, 47, 47, 0.1);
+    }
+    
+    .publish-button {
+        transition: all 0.3s ease;
+        border-radius: 30px;
+        padding: 10px 28px;
+        box-shadow: 0 4px 10px rgba(33, 150, 243, 0.3);
+        background-color: #2196F3 !important;
+    }
+    
+    .publish-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(33, 150, 243, 0.4);
+    }
+    
+    .cancel-button {
+        transition: all 0.3s ease;
+        border-radius: 30px;
+        padding: 10px 24px;
+    }
+    
+    .cancel-button:hover {
+        background-color: rgba(211, 47, 47, 0.1);
+    }
+    
+    @@media (max-width: 600px) {
+        .creator-heading {
+            font-size: 1.75rem;
+        }
+    }
+</style>
+
+@code {
+    private MudForm form = new();
+    private bool isFormValid;
+    private bool isSubmitting;
+    private bool isGenerating;
+    private string? ImageUrl;
+
+    private BlogPost newPost = new();
+    private bool isInitialized = false;
+
+    private readonly string[] Categories = new[]
+    {
+        "Technology", "Health", "Lifestyle", "Education",
+        "Business", "Politics", "Entertainment", "Sports",
+        "Travel", "Food", "Science", "Culture",
+        "Current Events", "Other"
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var userid = await LocalStorage.GetItemAsync<string>("userid");
+
+        if (userid == null)
+        {
+            NavigationManager.NavigateTo("/");
+        }
+
+        if (firstRender && !isInitialized)
+        {
+            isInitialized = true;
+
+            try
+            {
+                var authToken = await LocalStorage.GetItemAsync<string>("auth_token");
+                if (string.IsNullOrEmpty(authToken))
+                {
+                    Snackbar.Add("You must be logged in to create a post.", Severity.Error);
+                    NavigationManager.NavigateTo("/login");
+                    return;
+                }
+
+                var username = await SupabaseService.GetUsernameAsync();
+                newPost.Username = username;
+
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add("Error retrieving user details. Try again.", Severity.Error);
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (form.IsValid)
+        {
+            isSubmitting = true;
+
+            try
+            {
+                var userId = await LocalStorage.GetItemAsync<string>("userid");
+                newPost.UserId = userId;
+                newPost.CreatedAt = DateTime.UtcNow;
+
+                await MongoDBService.CreateAsync(newPost);
+                Snackbar.Add("Post created successfully!", Severity.Success);
+                NavigationManager.NavigateTo("/view-post");
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add("Failed to create post. Try again.", Severity.Error);
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+            finally
+            {
+                isSubmitting = false;
+            }
+        }
+    }
+
+    private void DeleteImage()
+    {
+        ImageUrl = null;
+        newPost.ImageUrl = null;
+        StateHasChanged();
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/view-post");
+    }
+
+    private async Task UploadFiles(IBrowserFile file)
+    {
+        try
+        {
+            ImageUrl = await MongoDBService.UploadImageAsync(file);
+            newPost.ImageUrl = ImageUrl;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Failed to upload image. Try again.", Severity.Error);
+            Console.WriteLine($"Error uploading image: {ex.Message}");
+        }
+    }
+
+    private async Task GenerateAIContent()
+    {
+        if (string.IsNullOrEmpty(newPost.Title) || string.IsNullOrEmpty(newPost.Category))
+        {
+            Snackbar.Add("Please enter both a title and select a category!", Severity.Warning);
+            return;
+        }
+
+        isGenerating = true;
+        try
+        {
+            Console.WriteLine($"Starting AI content generation for title: '{newPost.Title}' and category: '{newPost.Category}'");
+            string aiContent = await GenerateContentFromTitleAndCategory(newPost.Title, newPost.Category);
+            Console.WriteLine($"Generated content: {aiContent}");
+            newPost.Content = aiContent;
+
+            Console.WriteLine($"Fetching image for title: '{newPost.Title}' and category: '{newPost.Category}'");
+            string imageUrl = await FetchImageFromGoogle(newPost.Title, newPost.Category);
+            Console.WriteLine($"Fetched image URL: {imageUrl}");
+            newPost.ImageUrl = imageUrl;
+            ImageUrl = imageUrl;
+
+            Snackbar.Add("Content and image generated successfully!", Severity.Success);
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"HTTP Error: {ex.StatusCode} - {ex.Message}");
+            Snackbar.Add($"Failed to generate content or fetch image: {ex.Message}", Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Error: {ex.Message}");
+            Snackbar.Add($"Failed to generate content or fetch image: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isGenerating = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<string> GenerateContentFromTitleAndCategory(string title, string category)
+    {
+        string apiKey = Configuration["Gemini:ApiKey"];
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            throw new InvalidOperationException("Gemini API key is not configured");
+        }
+
+        string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={apiKey}";
+
+        var request = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    parts = new[]
+                    {
+                        new { text = $"Write a blog post content (about 300 words) for the title: '{title}' in the context of the category: '{category}'" }
+                    }
+                }
+            },
+            generationConfig = new
+            {
+                maxOutputTokens = 500,
+                temperature = 0.7
+            }
+        };
+
+        Console.WriteLine($"Sending request to Gemini API: {Newtonsoft.Json.JsonConvert.SerializeObject(request)}");
+        var response = await HttpClient.PostAsJsonAsync(endpoint, request);
+        Console.WriteLine($"Response status: {response.StatusCode}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Error response content: {errorContent}");
+            throw new HttpRequestException($"Gemini API returned {response.StatusCode}: {errorContent}");
+        }
+
+        var rawResponse = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"Raw Gemini API response: {rawResponse}");
+
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var candidates = result.GetProperty("candidates");
+        var firstCandidate = candidates.EnumerateArray().First();
+        var content = firstCandidate.GetProperty("content").GetProperty("parts").EnumerateArray().First().GetProperty("text").GetString().Trim();
+
+        Console.WriteLine($"Generated content length: {content.Length} characters");
+        return content;
+    }
+
+    private async Task<string> FetchImageFromGoogle(string title, string category)
+    {
+        string apiKey = Configuration["Google:ApiKey"];
+        string searchEngineId = Configuration["Google:SearchEngineId"];
+
+        if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(searchEngineId))
+        {
+            throw new InvalidOperationException("Google API configuration is missing");
+        }
+
+        string query = Uri.EscapeDataString($"{title} {category}"); // Combine title and category for more relevant images
+        string url = $"https://www.googleapis.com/customsearch/v1?key={apiKey}&cx={searchEngineId}&q={query}&searchType=image&num=1";
+
+        Console.WriteLine($"Sending request to Google Custom Search: {url}");
+        var response = await HttpClient.GetAsync(url);
+        Console.WriteLine($"Response status: {response.StatusCode}");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Error response content: {errorContent}");
+            throw new HttpRequestException($"Google API returned {response.StatusCode}: {errorContent}");
+        }
+
+        var rawResponse = await response.Content.ReadAsStringAsync();
+        Console.WriteLine($"Raw Google API response: {rawResponse}");
+
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var items = result.GetProperty("items");
+        var firstItem = items.EnumerateArray().First();
+        var imageUrl = firstItem.GetProperty("link").GetString();
+
+        Console.WriteLine($"Fetched image URL: {imageUrl}");
+        return imageUrl;
+    }
+
+    // Optional: Method to load apiResponses.json for testing
+    private async Task LoadMockResponses()
+    {
+        try
+        {
+            var filePath = Path.Combine(Environment.WebRootPath, "apiResponses.json");
+            var json = await File.ReadAllTextAsync(filePath);
+            var responses = JsonSerializer.Deserialize<JsonElement>(json);
+
+            var geminiResponse = responses.GetProperty("GeminiResponse").GetProperty("candidates").EnumerateArray().First();
+            var mockContent = geminiResponse.GetProperty("content").GetProperty("parts").EnumerateArray().First().GetProperty("text").GetString();
+            Console.WriteLine($"Mock Gemini content: {mockContent}");
+
+            var googleResponse = responses.GetProperty("GoogleImageResponse").GetProperty("items").EnumerateArray().First();
+            var mockImageUrl = googleResponse.GetProperty("link").GetString();
+            Console.WriteLine($"Mock Google image URL: {mockImageUrl}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading apiResponses.json: {ex.Message}");
+        }
+    }
+}

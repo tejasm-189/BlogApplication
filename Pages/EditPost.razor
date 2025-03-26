@@ -1,0 +1,258 @@
+﻿@page "/edit-post/{PostId}"
+@using System.ComponentModel.DataAnnotations
+@using BlogApplication.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+@inject SupabaseService SupabaseService
+@inject ILocalStorageService LocalStorage
+@inject MongoDBService MongoDBService
+@using MudBlazor
+@using BlogApplication.Models
+@using Blazored.LocalStorage
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudPaper Elevation="3" Class="pa-8">
+        <MudPaper Elevation="0" Class="pa-16 mb-16" Style="background: linear-gradient(135deg, #6B46C1 0%, #3B82F6 100%);">
+            <MudText Typo="Typo.h2" Align="Align.Center" Color="Color.Surface" Class="mb-4">Edit Post</MudText>
+            <MudText Typo="Typo.h5" Align="Align.Center" Color="Color.Surface">Update your thoughts with the world</MudText>
+        </MudPaper>
+
+        <MudItem xs="12">
+            <MudForm @ref="form" Model="@editPost" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField Label="Title"
+                                      @bind-Value="editPost.Title"
+                                      Variant="Variant.Outlined"
+                                      Immediate="true"
+                                      Required="true"
+                                      RequiredError="Please enter a title for your blog post"
+                                      HelperText="Choose a compelling title that captures attention"
+                                      Counter="100"
+                                      MaxLength="100"
+                                      Class="mb-4" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="8">
+                        <MudTextField Label="Content"
+                                      @bind-Value="editPost.Content"
+                                      Variant="Variant.Outlined"
+                                      Lines="15"
+                                      MultiLine="true"
+                                      Immediate="true"
+                                      Required="true"
+                                      RequiredError="Content is required"
+                                      HelperText="Write your blog post content here"
+                                      Class="mb-4" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="4">
+                        <MudPaper Class="pa-4" Elevation="0">
+                            <MudText Typo="Typo.subtitle1" Class="mb-4">Post Settings</MudText>
+
+                            <MudSelect T="string"
+                                       Label="Category"
+                                       @bind-Value="editPost.Category"
+                                       Required="true"
+                                       RequiredError="Please select a category"
+                                       AnchorOrigin="Origin.BottomCenter"
+                                       Class="mb-4">
+                                @foreach (var category in Categories)
+                                {
+                                    <MudSelectItem Value="@category">@category</MudSelectItem>
+                                }
+                            </MudSelect>
+
+                            <MudPaper Class="pa-4 mb-4" Elevation="0" Outlined="true">
+                                <MudText Typo="Typo.subtitle2" Class="mb-2">Featured Image</MudText>
+
+                                <MudFileUpload T="IBrowserFile" FilesChanged="UploadFiles">
+                                    <ActivatorContent>
+                                        <MudButton Variant="Variant.Filled"
+                                                   Color="Color.Primary"
+                                                   StartIcon="@Icons.Material.Filled.CloudUpload">
+                                            Upload Files
+                                        </MudButton>
+                                    </ActivatorContent>
+                                </MudFileUpload>
+
+                                @if (!string.IsNullOrEmpty(ImageUrl))
+                                {
+                                    <MudPaper Height="200px"
+                                              Class="d-flex align-center justify-center mud-background-gray pa-6 mt-4"
+                                              Style="@($"background: {(ImageUrl != null ? "var(--mud-palette-background-gray)" : "none")}")">
+                                        <MudImage Src="@ImageUrl" Alt="Uploaded Image" Height="100" />
+                                        <MudButton Variant="Variant.Outlined"
+                                                   Color="Color.Error"
+                                                   StartIcon="@Icons.Material.Filled.Delete"
+                                                   OnClick="DeleteImage"
+                                                   Class="mt-2">
+                                            Remove
+                                        </MudButton>
+                                    </MudPaper>
+                                }
+                            </MudPaper>
+
+                            <MudSwitch Label="Publish Immediately"
+                                       @bind-Value="editPost.PublishNow"
+                                       Color="Color.Primary"
+                                       Class="mb-4" />
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudDivider Class="mb-4" />
+                        <MudGrid Justify="Justify.SpaceBetween" Spacing="2">
+                            <MudItem>
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Error"
+                                           OnClick="Cancel"
+                                           StartIcon="@Icons.Material.Filled.Close">
+                                    Cancel
+                                </MudButton>
+                            </MudItem>
+                            <MudItem>
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Success"
+                                           Disabled="@(isSubmitting || !isFormValid)"
+                                           OnClick="HandleSubmit"
+                                           StartIcon="@Icons.Material.Filled.Publish">
+                                    @if (isSubmitting)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                        <MudText Class="ml-2">Saving...</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText>Save Post</MudText>
+                                    }
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudItem>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [Parameter]
+    public string PostId { get; set; }
+
+    private MudForm form = new();
+    private bool isFormValid;
+    private bool isSubmitting;
+    private string? ImageUrl;
+
+    private BlogPost editPost = new();
+    private bool isInitialized = false;
+
+    private readonly string[] Categories = new[]
+    {
+        "Technology", "Health", "Lifestyle", "Education",
+        "Business", "Politics", "Entertainment", "Sports",
+        "Travel", "Food", "Science", "Culture",
+        "Current Events", "Other"
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var userid = await LocalStorage.GetItemAsync<string>("userid");
+
+        if (userid == null)
+        {
+            NavigationManager.NavigateTo("/");
+        }
+
+        if (firstRender && !isInitialized)
+        {
+            isInitialized = true;
+
+            try
+            {
+                var authToken = await LocalStorage.GetItemAsync<string>("auth_token");
+                if (string.IsNullOrEmpty(authToken))
+                {
+                    Snackbar.Add("You must be logged in to edit a post.", Severity.Error);
+                    NavigationManager.NavigateTo("/login");
+                    return;
+                }
+
+                var username = await SupabaseService.GetUsernameAsync();
+                editPost = await MongoDBService.GetPostByIdAsync(PostId);
+                if (editPost == null || editPost.UserId != userid)
+                {
+                    Snackbar.Add("Post not found or you don’t have permission to edit it.", Severity.Error);
+                    NavigationManager.NavigateTo("/view-post");
+                    return;
+                }
+                editPost.Username = username;
+                ImageUrl = editPost.ImageUrl; 
+
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add("Error retrieving post details. Try again.", Severity.Error);
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (form.IsValid)
+        {
+            isSubmitting = true;
+
+            try
+            {
+                var userId = await LocalStorage.GetItemAsync<string>("userid");
+                editPost.UserId = userId;
+                editPost.CreatedAt = DateTime.UtcNow; 
+
+                await MongoDBService.UpdateAsync(PostId, editPost);
+                Snackbar.Add("Post updated successfully!", Severity.Success);
+                NavigationManager.NavigateTo("/view-post");
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add("Failed to update post. Try again.", Severity.Error);
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+            finally
+            {
+                isSubmitting = false;
+            }
+        }
+    }
+
+    private void DeleteImage()
+    {
+        ImageUrl = null;
+        editPost.ImageUrl = null;
+        StateHasChanged();
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/view-post");
+    }
+
+    private async Task UploadFiles(IBrowserFile file)
+    {
+        try
+        {
+            ImageUrl = await MongoDBService.UploadImageAsync(file);
+            editPost.ImageUrl = ImageUrl;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Failed to upload image. Try again.", Severity.Error);
+            Console.WriteLine($"Error uploading image: {ex.Message}");
+        }
+    }
+}

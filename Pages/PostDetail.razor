@@ -1,0 +1,420 @@
+﻿@page "/post/{PostId}"
+@inject MongoDBService MongoDBService
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@inject IDialogService DialogService
+@using BlogApplication.Services
+@using MudBlazor
+@using BlogApplication.Models
+@using Blazored.LocalStorage
+@using Microsoft.Extensions.Logging
+@inject ILogger<PostDetail> Logger
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+    @if (post == null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="pa-6 mb-6">
+            <MudGrid>
+                <MudItem xs="12" md="8">
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-4">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Tertiary"
+                                   Class="rounded-circle pa-0"
+                                   Style="width: 40px; height: 40px; min-width: 0; display: flex; align-items: center; justify-content: center;">
+                            <span style="font-size: 18px; font-weight: bold; color: white;">
+                                @(post.Username?.FirstOrDefault().ToString().ToUpper() ?? "U")
+                            </span>
+                        </MudButton>
+                        <MudText Typo="Typo.h5">@post.Username</MudText>
+                        @if (!IsCurrentUser)
+                        {
+                            <MudButton Variant="Variant.Text"
+                                       Color="@(IsFollowing ? Color.Error : Color.Primary)"
+                                       OnClick="ToggleFollow">
+                                @(IsFollowing ? "Unfollow" : "Follow")
+                            </MudButton>
+                        }
+                    </MudStack>
+                    <MudText Typo="Typo.h3" Class="mb-4">@post.Title</MudText>
+                    <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+                        @post.Category | By: @post.Username | Followers: @FollowersCount | Following: @FollowingCount | @FormatTimeAgo(post.CreatedAt)
+                    </MudText>
+                    @foreach (var paragraph in post.Content.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        <MudText Typo="Typo.body1" Class="mb-4" Style="text-align: justify;">
+                            @paragraph
+                        </MudText>
+                    }
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    @if (!string.IsNullOrEmpty(post.ImageUrl))
+                    {
+                        <MudImage Src="@post.ImageUrl"
+                                  Alt="@post.Title"
+                                  Elevation="0"
+                                  Class="rounded-lg"
+                                  Style="width: 100%; max-height: 300px; object-fit: cover;" />
+                    }
+                </MudItem>
+            </MudGrid>
+
+            <MudStack Row="true" Spacing="2" Class="mb-4">
+                <MudButton Variant="Variant.Text"
+                           Color="@(HasLiked ? Color.Error : Color.Primary)"
+                           StartIcon="@Icons.Material.Filled.Favorite"
+                           OnClick="ToggleLike">
+                    Like (@(post.Likes?.Count ?? 0))
+                </MudButton>
+
+                @if (IsCurrentUser || IsAdmin)
+                {
+                    @if (IsCurrentUser)
+                    {
+                        <MudButton Variant="Variant.Text"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Edit"
+                                   Href="@($"/edit-post/{PostId}")">
+                            Edit
+                        </MudButton>
+                    }
+                    @if (IsCurrentUser || IsAdmin)
+                    {
+                        <MudButton Variant="Variant.Text"
+                                   Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.Delete"
+                                   OnClick="DeletePost">
+                            Delete
+                        </MudButton>
+                    }
+                }
+            </MudStack>
+
+            <MudText Typo="Typo.h6" Class="mb-4">Comments (@(post.Comments?.Count ?? 0))</MudText>
+            <MudTextField @bind-Value="newComment"
+                          Label="Add a comment..."
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@Icons.Material.Filled.Send"
+                          AdornmentColor="Color.Primary"
+                          OnAdornmentClick="AddComment"
+                          Class="mb-4" />
+
+            @foreach (var comment in post.Comments.OrderByDescending(c => c.CreatedAt))
+            {
+                <MudPaper Elevation="1" Class="pa-3 mb-2">
+                    <MudGrid>
+                        <MudItem xs="10">
+                            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-2">
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Dark"
+                                           Class="rounded-circle pa-0"
+                                           Style="width: 40px; height: 40px; min-width: 0; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 18px; font-weight: bold; color: white;">
+                                        @(comment.Username?.FirstOrDefault().ToString().ToUpper() ?? "U")
+                                    </span>
+                                </MudButton>
+                                <MudText Typo="Typo.subtitle2" Style="margin: 0;">
+                                    @comment.Username
+                                </MudText>
+                            </MudStack>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @FormatTimeAgo(comment.CreatedAt)
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                @comment.Content
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="2" Class="d-flex align-center justify-end">
+                            @if (comment.UserId == currentUserId || IsAdmin)
+                            {
+                                <MudButton Variant="Variant.Text"
+                                           Color="Color.Error"
+                                           Size="Size.Small"
+                                           StartIcon="@Icons.Material.Filled.Delete"
+                                           OnClick="@(() => DeleteComment(comment.Id))">
+                                    Delete
+                                </MudButton>
+                            }
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [Parameter]
+    public string PostId { get; set; }
+
+    private BlogPost post;
+    private string newComment = "";
+    private string currentUserId = "";
+    private string currentUsername = "";
+    private string currentEmail = "";
+    private string currentRole = "";
+    private bool IsCurrentUser => post?.UserId == currentUserId;
+    private bool IsAdmin => currentRole.Contains("Admin");
+    private bool HasLiked => post?.Likes?.Any(l => l.UserId == currentUserId) ?? false;
+    private bool IsFollowing => followingIds.Contains(post?.UserId);
+    private List<string> followingIds = new List<string>();
+    private int FollowersCount => followers?.Count ?? 0;
+    private int FollowingCount => following?.Count ?? 0;
+    private List<Follow> followers;
+    private List<Follow> following;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                currentUserId = await LocalStorage.GetItemAsync<string>("userid");
+                currentUsername = await LocalStorage.GetItemAsync<string>("username");
+                currentEmail = await LocalStorage.GetItemAsync<string>("email");
+                currentRole = await LocalStorage.GetItemAsync<string>("user_metadata") ?? "";
+                if (string.IsNullOrEmpty(currentUserId))
+                {
+                    Logger.LogWarning("No user ID found in local storage.");
+                    Snackbar.Add("User session not found. Please log in.", Severity.Warning);
+                }
+                else
+                {
+                    Logger.LogInformation("User loaded - ID: {UserId}, Role: {Role}", currentUserId, currentRole);
+                    followingIds = (await MongoDBService.GetFollowingAsync(currentUserId)).Select(f => f.FollowingId).ToList();
+                }
+                await LoadPost();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error loading user data or post");
+                Snackbar.Add("Failed to load user data or post!", Severity.Error);
+            }
+        }
+    }
+
+    private async Task LoadPost()
+    {
+        try
+        {
+            post = await MongoDBService.GetPostByIdAsync(PostId);
+            if (post == null)
+            {
+                Logger.LogWarning("Post with ID: {PostId} not found.", PostId);
+                Snackbar.Add("Post not found!", Severity.Warning);
+                NavigationManager.NavigateTo("/view-post");
+                return;
+            }
+            followers = await MongoDBService.GetFollowersAsync(post.UserId);
+            following = await MongoDBService.GetFollowingAsync(post.UserId);
+            Logger.LogInformation("Loaded post with ID: {PostId}", PostId);
+            Snackbar.Add("Post loaded successfully!", Severity.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading post with ID: {PostId}", PostId);
+            Snackbar.Add("Failed to load post!", Severity.Error);
+        }
+    }
+
+    private async Task ToggleFollow()
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            Logger.LogWarning("User not logged in, cannot follow/unfollow user {UserId}", post.UserId);
+            Snackbar.Add("Please log in to follow/unfollow users!", Severity.Warning);
+            await DialogService.ShowMessageBox("Error", "Please log in to follow users.");
+            return;
+        }
+
+        try
+        {
+            if (IsFollowing)
+            {
+                await MongoDBService.RemoveFollowAsync(currentUserId, post.UserId);
+                followingIds.Remove(post.UserId);
+                followers = await MongoDBService.GetFollowersAsync(post.UserId);
+                Logger.LogInformation("User {UserId} unfollowed {FollowingId}", currentUserId, post.UserId);
+                Snackbar.Add($"Unfollowed {post.Username}!", Severity.Info);
+            }
+            else
+            {
+                await MongoDBService.AddFollowAsync(currentUserId, currentUsername, currentEmail, post.UserId);
+                followingIds.Add(post.UserId);
+                followers = await MongoDBService.GetFollowersAsync(post.UserId);
+                Logger.LogInformation("User {UserId} followed {FollowingId}", currentUserId, post.UserId);
+                Snackbar.Add($"Now following {post.Username}!", Severity.Success);
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error toggling follow for user {UserId}", post.UserId);
+            Snackbar.Add("Failed to update follow status!", Severity.Error);
+            await DialogService.ShowMessageBox("Error", "An error occurred while updating follow status.");
+        }
+    }
+
+    private async Task ToggleLike()
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            Logger.LogWarning("User not logged in, cannot like post {PostId}", PostId);
+            Snackbar.Add("Please log in to like this post!", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var username = await LocalStorage.GetItemAsync<string>("username") ?? "Anonymous";
+
+            if (HasLiked)
+            {
+                Logger.LogInformation("Removing like for PostId: {PostId}, UserId: {UserId}", post.Id, currentUserId);
+                await MongoDBService.RemoveLikeAsync(post.Id, currentUserId);
+                post.Likes.RemoveAll(l => l.UserId == currentUserId);
+                Snackbar.Add("Like removed!", Severity.Info);
+            }
+            else
+            {
+                Logger.LogInformation("Adding like for PostId: {PostId}, UserId: {UserId}", post.Id, currentUserId);
+                await MongoDBService.AddLikeAsync(post.Id, currentUserId, username);
+                post.Likes.Add(new Like { UserId = currentUserId, PostId = post.Id, Username = username });
+                Snackbar.Add("Post liked!", Severity.Success);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error toggling like for PostId: {PostId}", post.Id);
+            Snackbar.Add("Failed to toggle like!", Severity.Error);
+        }
+    }
+
+    private async Task AddComment()
+    {
+        if (string.IsNullOrEmpty(newComment) || string.IsNullOrEmpty(currentUserId))
+        {
+            Logger.LogWarning("Cannot add comment: NewComment or UserId is empty for PostId: {PostId}", PostId);
+            Snackbar.Add("Please log in and enter a comment!", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var username = await LocalStorage.GetItemAsync<string>("username") ?? "Anonymous";
+            var comment = new Comment
+                {
+                    UserId = currentUserId,
+                    Username = username,
+                    Content = newComment,
+                    CreatedAt = DateTime.UtcNow,
+                    PostId = post.Id
+                };
+
+            Logger.LogInformation("Adding comment for PostId: {PostId}", post.Id);
+            await MongoDBService.AddCommentAsync(post.Id, comment);
+            post.Comments.Add(comment);
+            newComment = "";
+            Snackbar.Add("Comment added!", Severity.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error adding comment for PostId: {PostId}", post.Id);
+            Snackbar.Add("Failed to add comment!", Severity.Error);
+        }
+    }
+
+    private async Task DeletePost()
+    {
+        if (!(IsCurrentUser || IsAdmin))
+        {
+            Logger.LogWarning("User {UserId} does not have permission to delete post {PostId}", currentUserId, PostId);
+            Snackbar.Add("You don’t have permission to delete this post!", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            Logger.LogInformation("Attempting to delete post with ID: {PostId} by UserId: {UserId}", PostId, currentUserId);
+            await MongoDBService.DeleteAsync(PostId);
+            Logger.LogInformation("Successfully deleted post with ID: {PostId}", PostId);
+            Snackbar.Add("Post deleted successfully!", Severity.Success);
+            NavigationManager.NavigateTo("/view-post");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting post with ID: {PostId}", PostId);
+            Snackbar.Add("Failed to delete post!", Severity.Error);
+        }
+    }
+
+    private async Task DeleteComment(string commentId)
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            Logger.LogWarning("User not logged in, cannot delete comment for PostId: {PostId}", PostId);
+            Snackbar.Add("Please log in to delete comments!", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var comment = post.Comments.FirstOrDefault(c => c.Id == commentId);
+            if (comment == null)
+            {
+                Logger.LogWarning("Comment not found with ID: {CommentId} for PostId: {PostId}", commentId, PostId);
+                Snackbar.Add("Comment not found!", Severity.Warning);
+                return;
+            }
+
+            if (comment.UserId != currentUserId && !IsAdmin)
+            {
+                Logger.LogWarning("User {UserId} does not have permission to delete comment {CommentId}", currentUserId, commentId);
+                Snackbar.Add("You don’t have permission to delete this comment!", Severity.Warning);
+                return;
+            }
+
+            Logger.LogInformation("Attempting to delete comment with ID: {CommentId} by UserId: {UserId}", commentId, currentUserId);
+            await MongoDBService.DeleteCommentAsync(post.Id, commentId);
+            post.Comments.RemoveAll(c => c.Id == commentId);
+            Snackbar.Add("Comment deleted!", Severity.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting comment with ID: {CommentId} for PostId: {PostId}", commentId, PostId);
+            Snackbar.Add("Failed to delete comment!", Severity.Error);
+        }
+    }
+
+    private string FormatTimeAgo(DateTime dateTime)
+    {
+        if (dateTime == default)
+            return "Unknown time";
+
+        var now = DateTime.UtcNow;
+        var timeSpan = now - dateTime;
+
+        if (timeSpan.TotalMinutes < 1)
+            return "just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} min ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hour{(timeSpan.TotalHours >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalDays < 30)
+            return $"{(int)timeSpan.TotalDays} day{(timeSpan.TotalDays >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalDays < 365)
+            return $"{(int)(timeSpan.TotalDays / 30)} month{(timeSpan.TotalDays / 30 >= 2 ? "s" : "")} ago";
+
+        return $"{(int)(timeSpan.TotalDays / 365)} year{(timeSpan.TotalDays / 365 >= 2 ? "s" : "")} ago";
+    }
+}

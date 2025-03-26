@@ -1,0 +1,654 @@
+﻿@page "/view-post"
+@inject MongoDBService MongoDBService
+@inject ILocalStorageService LocalStorage
+@inject ILogger<ViewPost> Logger
+@using BlogApplication.Services
+@using MudBlazor
+@using BlogApplication.Models
+@using Blazored.LocalStorage
+@inject NavigationManager NavigationManager
+@implements IDisposable
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
+    <MudPaper Elevation="0" Class="relative overflow-hidden rounded-lg mb-8"
+              Style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-secondary) 100%);">
+        <MudContainer Class="py-16">
+            <MudGrid>
+                <MudItem xs="12" md="6" Class="d-flex flex-column justify-center">
+                    <MudText Typo="Typo.h2" Color="Color.Surface" Class="mb-4">Welcome to Blog App</MudText>
+                    <MudText Typo="Typo.body1" Color="Color.Surface" Class="mb-8">
+                        Discover stories, thinking, and expertise from writers on any topic.
+                        Share your knowledge with the community.
+                    </MudText>
+                    <div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Surface" Size="Size.Large" Class="mr-4"
+                                   Href="/create-post">Get Started</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Surface" Size="Size.Large"
+                                   Href="/about">Learn More</MudButton>
+                    </div>
+                </MudItem>
+                <MudItem xs="12" md="6" Class="d-flex justify-center align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Article" Size="Size.Large" Color="Color.Surface"
+                             Style="width: 250px; height: 250px;" />
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
+    </MudPaper>
+
+    <MudGrid Justify="Justify.Center" Class="mb-8">
+        <MudItem xs="12" sm="10" md="8">
+            <MudTextField @bind-Value="searchText"
+                          Label="Search for Posts..."
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          FullWidth="true"
+                          Margin="Margin.Dense"
+                          Class="mt-0 mb-3"
+                          Immediate="true"
+                          @onkeyup="@((KeyboardEventArgs e) => SearchPosts())" />
+        </MudItem>
+    </MudGrid>
+
+    <div class="d-flex justify-end mb-4">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="RefreshPosts">
+            Refresh
+        </MudButton>
+    </div>
+
+    @if (isLoading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="my-4">@errorMessage</MudAlert>
+    }
+    else if (filteredPosts.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="my-4">
+            No posts found. Be the first to <MudLink Href="/create-post">create a post</MudLink>!
+        </MudAlert>
+    }
+    else
+    {
+        <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" Class="mb-8">
+            <MudTabPanel>
+                <TabContent>
+                    <MudTooltip Text="All">
+                        <MudText Typo="Typo.subtitle1" Color="Color.Primary">All</MudText>
+                    </MudTooltip>
+                </TabContent>
+                <ChildContent>
+                    <MudGrid>
+                        @foreach (var post in filteredPosts)
+                        {
+                            <MudItem xs="12">
+                                <MudCard Elevation="2" Class="mb-6 cursor-pointer" @onclick="() => NavigateToPost(post.Id)">
+                                    <MudCardHeader>
+                                        <CardHeaderContent>
+                                            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-2">
+                                                <MudButton Variant="Variant.Filled"
+                                                           Color="Color.Tertiary"
+                                                           Class="rounded-circle pa-0"
+                                                           Style="width: 40px; height: 40px; min-width: 0; display: flex; align-items: center; justify-content: center;">
+                                                    <span style="font-size: 18px; font-weight: bold; color: white;">
+                                                        @(post.Username?.FirstOrDefault().ToString().ToUpper() ?? "U")
+                                                    </span>
+                                                </MudButton>
+                                                <MudText Typo="Typo.h5"
+                                                         Style="margin: 0;">
+                                                    @post.Title
+                                                </MudText>
+                                                @if (currentUserId != post.UserId)
+                                                {
+                                                    <MudChip T="bool" Variant="Variant.Filled"
+                                                             Color="@(IsFollowing(post.UserId) ? Color.Success : Color.Primary)"
+                                                             Size="Size.Small"
+                                                             OnClick="() => ToggleFollow(post)"
+                                                             Style="cursor: pointer;">
+                                                        @(IsFollowing(post.UserId) ? "Following" : "Follow")
+                                                    </MudChip>
+                                                }
+                                            </MudStack>
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                                @post.Category | By: @post.Username | @FormatTimeAgo(post.CreatedAt)
+                                            </MudText>
+                                        </CardHeaderContent>
+                                        <CardHeaderActions>
+                                            <MudChip T="bool" Color="@(post.PublishNow ? Color.Success : Color.Default)" Size="Size.Small">
+                                                @(post.PublishNow ? "Published" : "Draft")
+                                            </MudChip>
+                                        </CardHeaderActions>
+                                    </MudCardHeader>
+                                    <MudCardContent>
+                                        <MudGrid>
+                                            <MudItem xs="12" sm="8">
+                                                @if (post.IsExpanded)
+                                                {
+                                                    @foreach (var paragraph in post.Content.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                                                    {
+                                                        <MudText Typo="Typo.body1"
+                                                                 Class="mt-3 mb-2"
+                                                                 Style="text-align: justify;">
+                                                            @paragraph
+                                                        </MudText>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <MudText Typo="Typo.body1"
+                                                             Class="mt-3 mb-2"
+                                                             Style="@GetContentStyle(post)">
+                                                        @post.Content
+                                                    </MudText>
+                                                }
+                                            </MudItem>
+                                            <MudItem xs="12" sm="4">
+                                                @if (!string.IsNullOrEmpty(post.ImageUrl))
+                                                {
+                                                    <MudImage Src="@post.ImageUrl" Alt="@post.Title" Elevation="0" Class="rounded-lg"
+                                                              Style="width: 100%; height: 200px; object-fit: cover;" />
+                                                }
+                                            </MudItem>
+                                        </MudGrid>
+                                    </MudCardContent>
+                                    <MudCardActions>
+                                        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => ToggleReadMore(post)">
+                                            @(post.IsExpanded ? "Show Less" : "Read More")
+                                        </MudButton>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Favorite"
+                                                       Color="@(HasLiked(post) ? Color.Error : Color.Default)"
+                                                       OnClick="() => ToggleLike(post)"
+                                                       Size="Size.Small" />
+                                        <MudText Typo="Typo.body2" Class="ml-2 mr-4">@(post.Likes.Count)</MudText>
+                                        <MudButton Variant="Variant.Text"
+                                                   Color="Color.Primary"
+                                                   StartIcon="@Icons.Material.Filled.Comment"
+                                                   OnClick="() => ToggleComments(post)">
+                                            (@post.Comments.Count)
+                                        </MudButton>
+                                    </MudCardActions>
+                                    @if (post.ShowComments)
+                                    {
+                                        <MudCardContent>
+                                            <MudTextField @bind-Value="newComments[post.Id]"
+                                                          Label="Add a comment..."
+                                                          Variant="Variant.Outlined"
+                                                          Adornment="Adornment.End"
+                                                          AdornmentIcon="@Icons.Material.Filled.Send"
+                                                          AdornmentColor="Color.Primary"
+                                                          OnAdornmentClick="() => AddComment(post)"
+                                                          Class="mb-4" />
+                                            @foreach (var comment in post.Comments.OrderByDescending(c => c.CreatedAt))
+                                            {
+                                                <MudPaper Elevation="1" Class="pa-3 mb-2">
+                                                    <MudText Typo="Typo.subtitle2">@comment.Username</MudText>
+                                                    <MudText Typo="Typo.body2">@comment.Content</MudText>
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                        @FormatTimeAgo(comment.CreatedAt)
+                                                    </MudText>
+                                                </MudPaper>
+                                            }
+                                        </MudCardContent>
+                                    }
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </ChildContent>
+            </MudTabPanel>
+            @foreach (var category in Categories)
+            {
+                <MudTabPanel>
+                    <TabContent>
+                        <MudTooltip Text="@category">
+                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">@category</MudText>
+                        </MudTooltip>
+                    </TabContent>
+                    <ChildContent>
+                        <MudGrid>
+                            @foreach (var post in filteredPosts.Where(p => p.Category == category))
+                            {
+                                <MudItem xs="12">
+                                    <MudCard Elevation="2" Class="mb-6 cursor-pointer" @onclick="() => NavigateToPost(post.Id)">
+                                        <MudCardHeader>
+                                            <CardHeaderContent>
+                                                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mb-2">
+                                                    <MudButton Variant="Variant.Filled"
+                                                               Color="Color.Tertiary"
+                                                               Class="rounded-circle pa-0"
+                                                               Style="width: 40px; height: 40px; min-width: 0; display: flex; align-items: center; justify-content: center;">
+                                                        <span style="font-size: 18px; font-weight: bold; color: white;">
+                                                            @(post.Username?.FirstOrDefault().ToString().ToUpper() ?? "U")
+                                                        </span>
+                                                    </MudButton>
+                                                    <MudText Typo="Typo.h5"
+                                                             Style="margin: 0;">
+                                                        @post.Title
+                                                    </MudText>
+                                                    @if (currentUserId != post.UserId)
+                                                    {
+                                                        <MudButton Variant="Variant.Text"
+                                                                   Color="@(IsFollowing(post.UserId) ? Color.Success : Color.Primary)"
+                                                                   OnClick="() => ToggleFollow(post)">
+                                                            @(IsFollowing(post.UserId) ? "Following" : "Follow")
+                                                        </MudButton>
+                                                    }
+                                                </MudStack>
+                                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                                    @post.Category | By: @post.Username | @FormatTimeAgo(post.CreatedAt)
+                                                </MudText>
+                                            </CardHeaderContent>
+                                            <CardHeaderActions>
+                                                <MudChip T="bool" Color="@(post.PublishNow ? Color.Success : Color.Default)" Size="Size.Small">
+                                                    @(post.PublishNow ? "Published" : "Draft")
+                                                </MudChip>
+                                            </CardHeaderActions>
+                                        </MudCardHeader>
+                                        <MudCardContent>
+                                            <MudGrid>
+                                                <MudItem xs="12" sm="8">
+                                                    @if (post.IsExpanded)
+                                                    {
+                                                        @foreach (var paragraph in post.Content.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                                                        {
+                                                            <MudText Typo="Typo.body1"
+                                                                     Class="mt-3 mb-2"
+                                                                     Style="text-align: justify;">
+                                                                @paragraph
+                                                            </MudText>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <MudText Typo="Typo.body1"
+                                                                 Class="mt-3 mb-2"
+                                                                 Style="@GetContentStyle(post)">
+                                                            @post.Content
+                                                        </MudText>
+                                                    }
+                                                </MudItem>
+                                                <MudItem xs="12" sm="4">
+                                                    @if (!string.IsNullOrEmpty(post.ImageUrl))
+                                                    {
+                                                        <MudImage Src="@post.ImageUrl" Alt="@post.Title" Elevation="0" Class="rounded-lg"
+                                                                  Style="width: 100%; height: 200px; object-fit: cover;" />
+                                                    }
+                                                </MudItem>
+                                            </MudGrid>
+                                        </MudCardContent>
+                                        <MudCardActions>
+                                            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => ToggleReadMore(post)">
+                                                @(post.IsExpanded ? "Show Less" : "Read More")
+                                            </MudButton>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Favorite"
+                                                           Color="@(HasLiked(post) ? Color.Error : Color.Default)"
+                                                           OnClick="() => ToggleLike(post)"
+                                                           Size="Size.Small" />
+                                            <MudText Typo="Typo.body2" Class="ml-2 mr-4">@(post.Likes?.Count ?? 0)</MudText>
+                                            <MudButton Variant="Variant.Text"
+                                                       Color="Color.Primary"
+                                                       StartIcon="@Icons.Material.Filled.Comment"
+                                                       OnClick="() => ToggleComments(post)">
+                                                Comments (@post.Comments?.Count)
+                                            </MudButton>
+                                        </MudCardActions>
+                                                @if (post.ShowComments)
+                                                {
+                                                    <MudCardContent>
+                                                        <MudTextField @bind-Value="newComments[post.Id]"
+                                                                      Label="Add a comment..."
+                                                                      Variant="Variant.Outlined"
+                                                                      Adornment="Adornment.End"
+                                                                      AdornmentIcon="@Icons.Material.Filled.Send"
+                                                                      AdornmentColor="Color.Primary"
+                                                                      OnAdornmentClick="() => AddComment(post)"
+                                                                      Class="mb-4" />
+                                                        @foreach (var comment in post.Comments.OrderByDescending(c => c.CreatedAt))
+                                                        {
+                                                            <MudPaper Elevation="1" Class="pa-3 mb-2">
+                                                                <MudText Typo="Typo.subtitle2">@comment.Username</MudText>
+                                                                <MudText Typo="Typo.body2">@comment.Content</MudText>
+                                                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                                    @FormatTimeAgo(comment.CreatedAt)
+                                                                </MudText>
+                                                            </MudPaper>
+                                                        }
+                                                    </MudCardContent>
+                                                }
+                                    </MudCard>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </ChildContent>
+                </MudTabPanel>
+            }
+        </MudTabs>
+    }
+</MudContainer>
+
+@code {
+    private List<BlogPost> blogPosts = new();
+    private List<BlogPost> filteredPosts = new();
+    private string searchText = "";
+    private bool isLoading = true;
+    private string userEmail = "";
+    private string errorMessage = "";
+    private System.Threading.Timer refreshTimer;
+    private bool isFirstRender = true;
+    private string currentUserId = "";
+    private string currentUsername = "";
+    private string currentEmail = "";
+    private Dictionary<string, string> newComments = new();
+    private List<string> followingIds = new();
+
+    private readonly string[] Categories = new[]
+    {
+        "Technology", "Health", "Lifestyle", "Education",
+        "Business", "Politics", "Entertainment", "Sports",
+        "Travel", "Food", "Science", "Culture",
+        "Current Events", "Other"
+    };
+
+    protected override void OnInitialized()
+    {
+        isLoading = true;
+        errorMessage = "";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && isFirstRender)
+        {
+            try
+            {
+                currentUserId = await LocalStorage.GetItemAsync<string>("userid");
+                currentUsername = await LocalStorage.GetItemAsync<string>("username") ?? "Anonymous";
+                currentEmail = await LocalStorage.GetItemAsync<string>("email");
+
+                if (string.IsNullOrEmpty(currentUserId))
+                {
+                    Logger.LogWarning("No user ID found in local storage.");
+                }
+                else
+                {
+                    Logger.LogInformation("User logged in - ID: {UserId}, Username: {Username}", currentUserId, currentUsername);
+                    followingIds = (await MongoDBService.GetFollowingAsync(currentUserId)).Select(f => f.FollowingId).ToList();
+                }
+
+                await LoadPostsAsync();
+
+                refreshTimer = new System.Threading.Timer(
+                    async _ => await InvokeAsync(async () =>
+                    {
+                        await LoadPostsAsync();
+                        StateHasChanged();
+                    }),
+                    null,
+                    TimeSpan.FromDays(30),
+                    TimeSpan.FromDays(30)
+                );
+
+                isFirstRender = false;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error during initialization: {ex.Message}";
+                Logger.LogError(ex, "Initialization error");
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task LoadPostsAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = "";
+            StateHasChanged();
+
+            blogPosts = await MongoDBService.GetAllAsync();
+            blogPosts = blogPosts.OrderByDescending(p => p.CreatedAt).ToList();
+            Logger.LogInformation("Loaded {Count} posts", blogPosts.Count);
+
+            foreach (var post in blogPosts)
+            {
+                post.IsExpanded = false;
+                post.ShowComments = false;
+                if (!newComments.ContainsKey(post.Id))
+                {
+                    newComments[post.Id] = "";
+                }
+            }
+
+            SearchPosts();
+
+            isLoading = false;
+           Snackbar.Add("Post loaded successfully!", Severity.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            errorMessage = $"Error loading posts: {ex.Message}";
+            Logger.LogError(ex, "Error loading posts");
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleFollow(BlogPost post)
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            Logger.LogWarning("User not logged in, cannot follow/unfollow user {UserId}", post.UserId);
+            return;
+        }
+
+        try
+        {
+            if (IsFollowing(post.UserId))
+            {
+                await MongoDBService.RemoveFollowAsync(currentUserId, post.UserId);
+                followingIds.Remove(post.UserId);
+                Logger.LogInformation("User {UserId} unfollowed {FollowingId}", currentUserId, post.UserId);
+            }
+            else
+            {
+                await MongoDBService.AddFollowAsync(currentUserId, currentUsername, currentEmail, post.UserId);
+                followingIds.Add(post.UserId);
+                Logger.LogInformation("User {UserId} followed {FollowingId}", currentUserId, post.UserId);
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error toggling follow for user {UserId}", post.UserId);
+        }
+    }
+
+    private bool IsFollowing(string userId)
+    {
+        return followingIds.Contains(userId);
+    }
+
+    private async Task RefreshPosts()
+    {
+        await LoadPostsAsync();
+        Snackbar.Add("Post loaded successfully!", Severity.Success);
+
+    }
+
+    private void SearchPosts()
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            filteredPosts = blogPosts;
+        }
+        else
+        {
+            filteredPosts = blogPosts.Where(p =>
+                (p.Title?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (p.Content?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (p.Category?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (p.Username?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+                .ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void ToggleReadMore(BlogPost post)
+    {
+        post.IsExpanded = !post.IsExpanded;
+        StateHasChanged();
+    }
+
+    private string GetContentStyle(BlogPost post)
+    {
+        return post.IsExpanded
+            ? "overflow: visible; white-space: normal; text-align: justify;"
+            : "display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; white-space: normal; text-align: justify;";
+    }
+
+    private void NavigateToPost(string postId)
+    {
+        NavigationManager.NavigateTo($"/post/{postId}");
+    }
+
+    private string FormatTimeAgo(DateTime dateTime)
+    {
+        if (dateTime == default)
+            return "Unknown time";
+
+        var now = DateTime.UtcNow;
+        var timeSpan = now - dateTime;
+
+        if (timeSpan.TotalMinutes < 1)
+            return "just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} min ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hour{(timeSpan.TotalHours >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalDays < 30)
+            return $"{(int)timeSpan.TotalDays} day{(timeSpan.TotalDays >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalDays < 365)
+            return $"{(int)(timeSpan.TotalDays / 30)} month{(timeSpan.TotalDays / 30 >= 2 ? "s" : "")} ago";
+
+        return $"{(int)(timeSpan.TotalDays / 365)} year{(timeSpan.TotalDays / 365 >= 2 ? "s" : "")} ago";
+    }
+
+    private bool HasLiked(BlogPost post)
+    {
+        return post.Likes?.Any(l => l.UserId == currentUserId) ?? false;
+    }
+
+    private async Task ToggleLike(BlogPost post)
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            Logger.LogWarning("User not logged in, cannot like post {PostId}", post.Id);
+            Snackbar.Add("Please log in to like posts!", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            if (HasLiked(post))
+            {
+                Logger.LogInformation("Removing like for PostId: {PostId}, UserId: {UserId}", post.Id, currentUserId);
+                await MongoDBService.RemoveLikeAsync(post.Id, currentUserId);
+                post.Likes.RemoveAll(l => l.UserId == currentUserId);
+                Snackbar.Add("Like removed!", Severity.Info);
+            }
+            else
+            {
+                Logger.LogInformation("Adding like for PostId: {PostId}, UserId: {UserId}", post.Id, currentUserId);
+                await MongoDBService.AddLikeAsync(post.Id, currentUserId, currentUsername);
+                post.Likes.Add(new Like { UserId = currentUserId, PostId = post.Id, Username = currentUsername });
+                Snackbar.Add("Post liked!", Severity.Success);
+            }
+
+            var index = blogPosts.FindIndex(p => p.Id == post.Id);
+            if (index != -1)
+            {
+                blogPosts[index] = post;
+            }
+            SearchPosts();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error toggling like for PostId: {PostId}", post.Id);
+            Snackbar.Add("Failed to toggle like!", Severity.Error);
+        }
+    }
+
+    private void ToggleComments(BlogPost post)
+    {
+        post.ShowComments = !post.ShowComments;
+        StateHasChanged();
+    }
+
+    private async Task AddComment(BlogPost post)
+    {
+        if (string.IsNullOrEmpty(newComments[post.Id]) || string.IsNullOrEmpty(currentUserId))
+        {
+            Logger.LogWarning("Cannot add comment: NewComment or UserId is empty for PostId: {PostId}", post.Id);
+            Snackbar.Add("Please log in and enter a comment!", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var comment = new Comment
+                {
+                    UserId = currentUserId,
+                    Username = currentUsername,
+                    Content = newComments[post.Id],
+                    CreatedAt = DateTime.UtcNow,
+                    PostId = post.Id
+                };
+
+            Logger.LogInformation("Adding comment for PostId: {PostId}", post.Id);
+            await MongoDBService.AddCommentAsync(post.Id, comment);
+
+            post = await MongoDBService.GetPostByIdAsync(post.Id);
+            newComments[post.Id] = "";
+            var index = blogPosts.FindIndex(p => p.Id == post.Id);
+            if (index != -1)
+            {
+                blogPosts[index] = post;
+            }
+            SearchPosts();
+            Snackbar.Add("Comment added!", Severity.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error adding comment for PostId: {PostId}", post.Id);
+            Snackbar.Add("Failed to add comment!", Severity.Error);
+        }
+    }
+
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+}
+
+<style>
+    .elegant-icon {
+        transition: all 0.3s ease;
+    }
+
+        .elegant-icon:hover {
+            transform: scale(1.2);
+            color: var(--mud-palette-primary-dark);
+        }
+</style>

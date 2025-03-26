@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: blog-application
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+    healthCheckPath: /
+    autoDeploy: true
+    plan: free 

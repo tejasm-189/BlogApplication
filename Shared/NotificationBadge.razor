@@ -1,0 +1,218 @@
+@using BlogApplication.Models
+@using BlogApplication.Services
+@using MudBlazor
+@inject ILocalStorageService LocalStorage
+@inject INotificationService NotificationService
+@inject NavigationManager NavigationManager
+@inject NotificationUpdateService NotificationUpdateService
+@implements IDisposable
+
+<MudMenu Icon="@Icons.Material.Filled.Notifications" 
+         Color="Color.Inherit" 
+         AnchorOrigin="Origin.BottomRight"
+         TransformOrigin="Origin.TopRight"
+         Dense="true"
+         Class="notification-menu">
+
+    <ActivatorContent>
+        <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit">
+            @if (UnreadCount > 0)
+            {
+                <MudBadge Color="Color.Error" Overlap="true" Bordered="true" Content="@UnreadCount" Max="99" Class="notification-badge" />
+            }
+        </MudIconButton>
+    </ActivatorContent>
+
+    <ChildContent>
+        <MudText Typo="Typo.h6" Class="px-4 py-2 d-flex align-center justify-space-between">
+            Notifications
+            @if (UnreadCount > 0)
+            {
+                <MudButton Variant="Variant.Text" 
+                          Color="Color.Primary" 
+                          Size="Size.Small" 
+                          OnClick="MarkAllAsRead">
+                    Mark all as read
+                </MudButton>
+            }
+        </MudText>
+        
+        <MudDivider />
+        
+        @if (Notifications.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="pa-4 text-center">No notifications yet</MudText>
+        }
+        else
+        {
+            <MudList Clickable="true" Dense="true" Class="notification-list" Style="max-height: 400px; overflow-y: auto">
+                @foreach (var notification in Notifications)
+                {
+                    <MudListItem @key="notification.Id" 
+                                OnClick="() => HandleNotificationClick(notification)"
+                                Class="@(notification.IsRead ? "notification-read" : "notification-unread")">
+                        <div class="d-flex align-center">
+                            @switch (notification.Type)
+                            {
+                                case NotificationType.NewFollower:
+                                    <MudAvatar Color="Color.Primary" Size="Size.Small" Class="mr-3">
+                                        @notification.ActorUsername.FirstOrDefault().ToString().ToUpper()
+                                    </MudAvatar>
+                                    break;
+                                case NotificationType.NewLike:
+                                    <MudIcon Icon="@Icons.Material.Filled.Favorite" 
+                                           Color="Color.Error" 
+                                           Size="Size.Small" 
+                                           Class="mr-3" />
+                                    break;
+                                case NotificationType.NewComment:
+                                    <MudIcon Icon="@Icons.Material.Filled.Comment" 
+                                           Color="Color.Info" 
+                                           Size="Size.Small" 
+                                           Class="mr-3" />
+                                    break;
+                            }
+                            
+                            <div>
+                                <MudText Typo="Typo.body2">@notification.Message</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @GetTimeAgo(notification.CreatedAt)
+                                </MudText>
+                            </div>
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </ChildContent>
+</MudMenu>
+
+<style>
+    .notification-badge {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+    }
+    
+    .notification-unread {
+        background-color: rgba(var(--mud-palette-primary-rgb), 0.05);
+        font-weight: 500;
+    }
+    
+    .notification-list .mud-list-item {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--mud-palette-divider);
+    }
+</style>
+
+@code {
+    private List<Notification> Notifications { get; set; } = new List<Notification>();
+    private int UnreadCount { get; set; } = 0;
+    private string UserId { get; set; }
+    private System.Threading.Timer refreshTimer;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            UserId = await LocalStorage.GetItemAsync<string>("userid");
+            
+            if (!string.IsNullOrEmpty(UserId))
+            {
+                await LoadNotifications();
+                
+                // Setup a timer to refresh notifications every 15 seconds
+                refreshTimer = new System.Threading.Timer(async _ => 
+                {
+                    await LoadNotifications();
+                    await InvokeAsync(StateHasChanged);
+                }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+                
+                // Subscribe to notification events
+                NotificationUpdateService.OnNotificationReceived += HandleNotificationReceived;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing notifications: {ex.Message}");
+        }
+    }
+    
+    private async void HandleNotificationReceived()
+    {
+        await LoadNotifications();
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+        NotificationUpdateService.OnNotificationReceived -= HandleNotificationReceived;
+    }
+    
+    private async Task LoadNotifications()
+    {
+        try
+        {
+            Notifications = await NotificationService.GetUserNotificationsAsync(UserId);
+            UnreadCount = await NotificationService.GetUnreadCountAsync(UserId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading notifications: {ex.Message}");
+        }
+    }
+    
+    private async Task HandleNotificationClick(Notification notification)
+    {
+        if (!notification.IsRead)
+        {
+            notification.IsRead = true;
+            UnreadCount = Math.Max(0, UnreadCount - 1);
+            await NotificationService.MarkAsReadAsync(notification.Id);
+        }
+        
+        // Navigate based on notification type
+        switch (notification.Type)
+        {
+            case NotificationType.NewFollower:
+                // Navigate to profile page of follower
+                // NavigationManager.NavigateTo($"/profile/{notification.ActorId}");
+                break;
+            case NotificationType.NewLike:
+            case NotificationType.NewComment:
+                // TODO: Navigate to the post when post ID is added to notification
+                break;
+        }
+    }
+    
+    private async Task MarkAllAsRead()
+    {
+        await NotificationService.MarkAllAsReadAsync(UserId);
+        
+        foreach (var notification in Notifications)
+        {
+            notification.IsRead = true;
+        }
+        
+        UnreadCount = 0;
+        
+        StateHasChanged();
+    }
+    
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.UtcNow - dateTime;
+        
+        if (timeSpan.TotalMinutes < 1)
+            return "just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} min ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hr ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays} days ago";
+        
+        return dateTime.ToString("MMM dd");
+    }
+} 
